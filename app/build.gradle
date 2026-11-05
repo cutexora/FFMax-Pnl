@@ -3,8 +3,11 @@ plugins { id 'com.android.application' }
 def versionPropsFile = rootProject.file('version.properties')
 def versionProps = new Properties()
 if (versionPropsFile.exists()) {
-    versionPropsFile.withInputStream { versionProps.load(it) }
+    versionPropsFile.withInputStream { stream -> versionProps.load(stream) }
 }
+
+def appVersionCode = (versionProps.getProperty('VERSION_CODE') ?: '1').toInteger()
+def appVersionName = (versionProps.getProperty('VERSION_NAME') ?: '1.0').toString()
 
 android {
     namespace 'com.ffmax.panel'
@@ -13,22 +16,22 @@ android {
         applicationId 'com.ffmax.panel'
         minSdk 23
         targetSdk 28
-        versionCode (versionProps['VERSION_CODE'] ?: '1').toInteger()
-        versionName (versionProps['VERSION_NAME'] ?: '1.0')
+        versionCode appVersionCode
+        versionName appVersionName
     }
 }
 
 tasks.register('bumpVersion') {
     doLast {
         def props = new Properties()
-        versionPropsFile.withInputStream { props.load(it) }
-        int code = (props['VERSION_CODE'] ?: '1').toInteger() + 1
-        def parts = (props['VERSION_NAME'] ?: '1.0').tokenize('.')
+        versionPropsFile.withInputStream { stream -> props.load(stream) }
+        int code = (props.getProperty('VERSION_CODE') ?: '1').toInteger() + 1
+        def parts = (props.getProperty('VERSION_NAME') ?: '1.0').tokenize('.')
         int major = parts[0].toInteger()
         int minor = (parts.size() > 1 ? parts[1].toInteger() : 0) + 1
         props['VERSION_CODE'] = code.toString()
         props['VERSION_NAME'] = "${major}.${minor}"
-        versionPropsFile.withWriter { props.store(it, 'Auto-managed version file') }
+        versionPropsFile.withWriter { stream -> props.store(stream, 'Auto-managed version file') }
         println "Version bumped -> ${props['VERSION_NAME']} (${props['VERSION_CODE']})"
     }
 }
