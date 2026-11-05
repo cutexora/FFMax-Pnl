@@ -22,6 +22,8 @@ public class OverlayService extends Service {
     private WindowManager.LayoutParams params;
     private int minWidth;
     private int minHeight;
+    private int savedWidth;
+    private int savedHeight;
 
     @Override public IBinder onBind(Intent i) { return null; }
 
@@ -61,35 +63,104 @@ public class OverlayService extends Service {
         params.x = 0;
         params.y = 90;
 
-        attachDrag(panelView.getDragHandle());
+        panelView.setOnMinimizeListener(minimized -> {
+            if (minimized) {
+                savedWidth = params.width;
+                savedHeight = params.height;
+                int size = dp(64);
+                params.width = size;
+                params.height = size;
+            } else {
+                params.width = savedWidth;
+                params.height = savedHeight;
+            }
+            try { wm.updateViewLayout(panelView, params); } catch (Exception ignored) {}
+        });
+
+        attachDrag(panelView);
         attachResize(panelView.getResizeHandle());
+        attachBubbleDrag(panelView);
 
         panel = panelView;
         try { wm.addView(panel, params); } catch (Exception e) { stopSelf(); }
         try { wm.addView(fovCircle, fovParams); } catch (Exception ignored) {}
     }
 
-    private void attachDrag(View handle) {
+    private void attachDrag(Panel panelView) {
+        View handle = panelView.getDragHandle();
         handle.setOnTouchListener(new View.OnTouchListener() {
             float sx, sy;
             int ox, oy;
+            long downTime;
+            boolean moved;
             public boolean onTouch(View v, MotionEvent e) {
                 switch (e.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
                         sx = e.getRawX(); sy = e.getRawY();
                         ox = params.x; oy = params.y;
+                        downTime = System.currentTimeMillis();
+                        moved = false;
                         return true;
                     case MotionEvent.ACTION_MOVE:
-                        params.x = ox + (int) (e.getRawX() - sx);
-                        params.y = oy + (int) (e.getRawY() - sy);
-                        try { wm.updateViewLayout(panel, params); } catch (Exception ignored) {}
+                        float dx = e.getRawX() - sx;
+                        float dy = e.getRawY() - sy;
+                        if (Math.abs(dx) > dp(6) || Math.abs(dy) > dp(6)) moved = true;
+                        if (moved) {
+                            params.x = ox + (int) dx;
+                            params.y = oy + (int) dy;
+                            try { wm.updateViewLayout(panelView, params); } catch (Exception ignored) {}
+                        }
                         return true;
                     case MotionEvent.ACTION_UP:
+                        if (!moved && System.currentTimeMillis() - downTime < 250) {
+                            panelView.toggleMinimize();
+                        }
                         return true;
                 }
                 return false;
             }
         });
+    }
+
+    private void attachBubbleDrag(Panel panelView) {
+        View bubble = panelView.getMinimizeBubble();
+        if (bubble == null) return;
+        bubble.setOnTouchListener(new View.OnTouchListener() {
+            float sx, sy;
+            int ox, oy;
+            long downTime;
+            boolean moved;
+            public boolean onTouch(View v, MotionEvent e) {
+                switch (e.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        sx = e.getRawX(); sy = e.getRawY();
+                        ox = params.x; oy = params.y;
+                        downTime = System.currentTimeMillis();
+                        moved = false;
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        float dx = e.getRawX() - sx;
+                        float dy = e.getRawY() - sy;
+                        if (Math.abs(dx) > dp(6) || Math.abs(dy) > dp(6)) moved = true;
+                        if (moved) {
+                            params.x = ox + (int) dx;
+                            params.y = oy + (int) dy;
+                            try { wm.updateViewLayout(panelView, params); } catch (Exception ignored) {}
+                        }
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        if (!moved && System.currentTimeMillis() - downTime < 250) {
+                            panelView.restore();
+                        }
+                        return true;
+                }
+                return false;
+            }
+        });
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     private void attachResize(View handle) {
