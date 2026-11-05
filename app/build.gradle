@@ -1,12 +1,34 @@
 plugins { id 'com.android.application' }
+
+def versionPropsFile = rootProject.file('version.properties')
+def versionProps = new Properties()
+if (versionPropsFile.exists()) {
+    versionPropsFile.withInputStream { versionProps.load(it) }
+}
+
 android {
-    namespace 'com.aj.ffmaxcompanion'
+    namespace 'com.ffmax.panel'
     compileSdk 35
     defaultConfig {
-        applicationId 'com.aj.ffmaxcompanion'
+        applicationId 'com.ffmax.panel'
         minSdk 23
         targetSdk 28
-        versionCode 1
-        versionName '1.0'
+        versionCode (versionProps['VERSION_CODE'] ?: '1').toInteger()
+        versionName (versionProps['VERSION_NAME'] ?: '1.0')
+    }
+}
+
+tasks.register('bumpVersion') {
+    doLast {
+        def props = new Properties()
+        versionPropsFile.withInputStream { props.load(it) }
+        int code = (props['VERSION_CODE'] ?: '1').toInteger() + 1
+        def parts = (props['VERSION_NAME'] ?: '1.0').tokenize('.')
+        int major = parts[0].toInteger()
+        int minor = (parts.size() > 1 ? parts[1].toInteger() : 0) + 1
+        props['VERSION_CODE'] = code.toString()
+        props['VERSION_NAME'] = "${major}.${minor}"
+        versionPropsFile.withWriter { props.store(it, 'Auto-managed version file') }
+        println "Version bumped -> ${props['VERSION_NAME']} (${props['VERSION_CODE']})"
     }
 }
